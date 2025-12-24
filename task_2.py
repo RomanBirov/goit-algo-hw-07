@@ -1,170 +1,99 @@
-import timeit
-from functools import lru_cache
-
-@lru_cache(maxsize=None)
-def fib_lru(n):
-    if n <= 1:
-        return n
-    return fib_lru(n - 1) + fib_lru(n - 2)
-
-
-class SplayNode:
-    def __init__(self, key, value, parent=None):
+class AVLNode:
+    def __init__(self, key):
         self.key = key
-        self.value = value
-        self.parent = parent
+        self.height = 1
         self.left = None
         self.right = None
 
-
-class SplayTree:
-    def __init__(self):
-        self.root = None
-
-    def find(self, key):
-        node = self.root
-        while node:
-            if key < node.key:
-                node = node.left
-            elif key > node.key:
-                node = node.right
-            else:
-                self._splay(node)
-                return node.value
-        return None
-
-    def insert(self, key, value):
-        if self.root is None:
-            self.root = SplayNode(key, value)
-            return
-
-        node = self.root
-        parent = None
-        while node:
-            parent = node
-            if key < node.key:
-                node = node.left
-            elif key > node.key:
-                node = node.right
-            else:
-                node.value = value
-                self._splay(node)
-                return
-
-        new_node = SplayNode(key, value, parent=parent)
-        if key < parent.key:
-            parent.left = new_node
-        else:
-            parent.right = new_node
-
-        self._splay(new_node)
-
-    def _rotate_left(self, x):
-        y = x.right
-        if y is None:
-            return
-        x.right = y.left
-        if y.left:
-            y.left.parent = x
-
-        y.parent = x.parent
-        if x.parent is None:
-            self.root = y
-        elif x == x.parent.left:
-            x.parent.left = y
-        else:
-            x.parent.right = y
-
-        y.left = x
-        x.parent = y
-
-    def _rotate_right(self, x):
-        y = x.left
-        if y is None:
-            return
-        x.left = y.right
-        if y.right:
-            y.right.parent = x
-
-        y.parent = x.parent
-        if x.parent is None:
-            self.root = y
-        elif x == x.parent.left:
-            x.parent.left = y
-        else:
-            x.parent.right = y
-
-        y.right = x
-        x.parent = y
-
-    def _splay(self, x):
-        while x.parent:
-            p = x.parent
-            g = p.parent
-
-            if g is None:
-                if x == p.left:
-                    self._rotate_right(p)
-                else:
-                    self._rotate_left(p)
-            elif x == p.left and p == g.left:
-                self._rotate_right(g)
-                self._rotate_right(p)
-            elif x == p.right and p == g.right:
-                self._rotate_left(g)
-                self._rotate_left(p)
-            else:
-                if x == p.left:
-                    self._rotate_right(p)
-                    self._rotate_left(g)
-                else:
-                    self._rotate_left(p)
-                    self._rotate_right(g)
+    def __str__(self, level=0, prefix="Root: "):
+        result = "\t" * level + prefix + str(self.key) + "\n"
+        if self.left:
+            result += self.left.__str__(level + 1, "L--- ")
+        if self.right:
+            result += self.right.__str__(level + 1, "R--- ")
+        return result
 
 
-def fib_splay(n, tree):
-    if n <= 1:
-        return n
-
-    cached = tree.find(n)
-    if cached is not None:
-        return cached
-
-    value = fib_splay(n - 1, tree) + fib_splay(n - 2, tree)
-    tree.insert(n, value)
-    return value
-
-def time_lru(n, repeats=5):
-    def run():
-        fib_lru.cache_clear()  
-        return fib_lru(n)
-
-    return min(timeit.repeat(run, number=1, repeat=repeats))
+def get_height(node):
+    return node.height if node else 0
 
 
-def time_splay(n, repeats=5):
-    def run():
-        tree = SplayTree()  
-
-    return min(timeit.repeat(run, number=1, repeat=repeats))
+def get_balance(node):
+    return get_height(node.left) - get_height(node.right) if node else 0
 
 
-def main():
-    steps = list(range(0, 951, 50))
-    repeats = 5
+def right_rotate(y):
+    x = y.left
+    t3 = x.right
 
-    print("n\tLRU(s)\t\tSplay(s)")
-    print("-" * 32)
+    x.right = y
+    y.left = t3
 
-    for n in steps:
-        t_lru = time_lru(n, repeats=repeats)
-        t_spl = time_splay(n, repeats=repeats)
-        print(f"{n}\t{t_lru:.6f}\t\t{t_spl:.6f}")
-
-    print("\nВисновок:")
-    print("- LRU Cache зазвичай швидший, бо кешування вбудоване і дуже оптимізоване.")
-    print("- Splay Tree теж кешує, але має більші накладні витрати на структуру/повороти.")
+    y.height = 1 + max(get_height(y.left), get_height(y.right))
+    x.height = 1 + max(get_height(x.left), get_height(x.right))
+    return x
 
 
-if __name__ == "__main__":
-    main()
+def left_rotate(x):
+    y = x.right
+    t2 = y.left
+
+    y.left = x
+    x.right = t2
+
+    x.height = 1 + max(get_height(x.left), get_height(x.right))
+    y.height = 1 + max(get_height(y.left), get_height(y.right))
+    return y
+
+
+def insert(root, key):
+    if not root:
+        return AVLNode(key)
+
+    if key < root.key:
+        root.left = insert(root.left, key)
+    elif key > root.key:
+        root.right = insert(root.right, key)
+    else:
+        return root
+
+    root.height = 1 + max(get_height(root.left), get_height(root.right))
+    balance = get_balance(root)
+
+    if balance > 1 and key < root.left.key:
+        return right_rotate(root)
+
+    if balance < -1 and key > root.right.key:
+        return left_rotate(root)
+
+    if balance > 1 and key > root.left.key:
+        root.left = left_rotate(root.left)
+        return right_rotate(root)
+
+    if balance < -1 and key < root.right.key:
+        root.right = right_rotate(root.right)
+        return left_rotate(root)
+
+    return root
+
+
+def min_value_node(node):
+    # Знаходить найменше значення в AVL-дереві
+    current = node
+    while current.left:
+        current = current.left
+    return current
+
+
+# Перевірка 
+root = None
+keys = [10, 20, 30, 25, 28, 27, -1]
+
+for key in keys:
+    root = insert(root, key)
+
+print("AVL-Дерево:")
+print(root)
+
+min_node = min_value_node(root)
+print(f"Найменше значення в дереві: {min_node.key}")

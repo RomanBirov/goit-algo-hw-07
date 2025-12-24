@@ -1,89 +1,99 @@
-import random
-import time
-from functools import lru_cache
+class AVLNode:
+    def __init__(self, key):
+        self.key = key
+        self.height = 1
+        self.left = None
+        self.right = None
+
+    def __str__(self, level=0, prefix="Root: "):
+        result = "\t" * level + prefix + str(self.key) + "\n"
+        if self.left:
+            result += self.left.__str__(level + 1, "L--- ")
+        if self.right:
+            result += self.right.__str__(level + 1, "R--- ")
+        return result
 
 
-def range_sum_no_cache(arr, left, right):
-    return sum(arr[left:right + 1])
+def get_height(node):
+    return node.height if node else 0
 
 
-def update_no_cache(arr, index, value):
-    arr[index] = value
+def get_balance(node):
+    return get_height(node.left) - get_height(node.right) if node else 0
 
 
-class SmartCachedRange:
+def right_rotate(y):
+    x = y.left
+    t3 = x.right
 
-    def __init__(self, arr, cache_size=1000):
-        self.arr = arr
-        self._version = 0
+    x.right = y
+    y.left = t3
 
-        @lru_cache(maxsize=cache_size)
-        def _cached_sum(version, left, right):
-            return sum(self.arr[left:right + 1])
-
-        self._cached_sum = _cached_sum
-
-    def range_sum(self, left, right):
-        if left > right:
-            left, right = right, left
-        return self._cached_sum(self._version, left, right)
-
-    def update(self, index, value):
-        self.arr[index] = value
-        self._version += 1
+    y.height = 1 + max(get_height(y.left), get_height(y.right))
+    x.height = 1 + max(get_height(x.left), get_height(x.right))
+    return x
 
 
-def generate_queries(n, q, seed=0):
-    random.seed(seed)
-    queries = []
+def left_rotate(x):
+    y = x.right
+    t2 = y.left
 
-    for _ in range(q):
-        if random.choice(["Range", "Update"]) == "Range":
-            l = random.randint(0, n - 1)
-            r = random.randint(l, n - 1)
-            queries.append(("Range", l, r))
-        else:
-            idx = random.randint(0, n - 1)
-            val = random.randint(1, 100)
-            queries.append(("Update", idx, val))
+    y.left = x
+    x.right = t2
 
-    return queries
+    x.height = 1 + max(get_height(x.left), get_height(x.right))
+    y.height = 1 + max(get_height(y.left), get_height(y.right))
+    return y
 
 
-def main():
-    N = 100_000
-    Q = 50_000
+def insert(root, key):
+    if not root:
+        return AVLNode(key)
 
-    base_array = [random.randint(1, 100) for _ in range(N)]
-    queries = generate_queries(N, Q)
+    if key < root.key:
+        root.left = insert(root.left, key)
+    elif key > root.key:
+        root.right = insert(root.right, key)
+    else:
+        return root
 
-    # Без кешу
-    arr_no_cache = base_array.copy()
-    start = time.perf_counter()
-    for kind, a, b in queries:
-        if kind == "Range":
-            range_sum_no_cache(arr_no_cache, a, b)
-        else:
-            update_no_cache(arr_no_cache, a, b)
-    end = time.perf_counter()
-    no_cache_time = end - start
+    root.height = 1 + max(get_height(root.left), get_height(root.right))
+    balance = get_balance(root)
 
-    # З кешем
-    arr_cache = base_array.copy()
-    cached_ops = SmartCachedRange(arr_cache)
+    if balance > 1 and key < root.left.key:
+        return right_rotate(root)
 
-    start = time.perf_counter()
-    for kind, a, b in queries:
-        if kind == "Range":
-            cached_ops.range_sum(a, b)
-        else:
-            cached_ops.update(a, b)
-    end = time.perf_counter()
-    cache_time = end - start
+    if balance < -1 and key > root.right.key:
+        return left_rotate(root)
 
-    print(f"Час виконання без кешування: {no_cache_time:.2f} секунд")
-    print(f"Час виконання з LRU-кешем:   {cache_time:.2f} секунд")
+    if balance > 1 and key > root.left.key:
+        root.left = left_rotate(root.left)
+        return right_rotate(root)
+
+    if balance < -1 and key < root.right.key:
+        root.right = right_rotate(root.right)
+        return left_rotate(root)
+
+    return root
 
 
-if __name__ == "__main__":
-    main()
+def max_value_node(node):
+    # Знаходить найбільше значення в AVL-дереві
+    current = node
+    while current.right:
+        current = current.right
+    return current
+
+
+# Перевірка
+root = None
+keys = [10, 20, 30, 25, 28, 27, -1]
+
+for key in keys:
+    root = insert(root, key)
+
+print("AVL-Дерево:")
+print(root)
+
+max_node = max_value_node(root)
+print(f"Найбільше значення в дереві: {max_node.key}")
